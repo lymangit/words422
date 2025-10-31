@@ -1,0 +1,1480 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>单词记忆大师 | Vocabulary Master</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    
+    <!-- 配置Tailwind自定义颜色和字体 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#F97316',
+                        neutral: '#F3F4F6',
+                        dark: '#1F2937',
+                        emerald: {
+                            50: '#ECFDF5',
+                            100: '#D1FAE5',
+                            200: '#A7F3D0',
+                            600: '#059669'
+                        },
+                        indigo: {
+                            50: '#EEF2FF',
+                            100: '#E0E7FF',
+                            200: '#C7D2FE',
+                            600: '#4F46E5'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .card-shadow {
+                box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            }
+            .btn-hover {
+                @apply transition-all duration-300 hover:shadow-lg transform hover:-translate-y-0.5;
+            }
+            .card-flip {
+                perspective: 1000px;
+                transform-style: preserve-3d;
+            }
+            .flip-animation {
+                transition: transform 0.6s;
+                transform-style: preserve-3d;
+            }
+            .flip-front {
+                backface-visibility: hidden;
+            }
+            .flip-back {
+                backface-visibility: hidden;
+                transform: rotateY(180deg);
+            }
+            .flipped {
+                transform: rotateY(180deg);
+            }
+            .loading-shimmer {
+                background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+                background-size: 200% 100%;
+                animation: shimmer 1.5s infinite;
+            }
+            .upload-error {
+                @apply border-red-500 bg-red-50;
+            }
+            @keyframes shimmer {
+                0% { background-position: -200% 0; }
+                100% { background-position: 200% 0; }
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans text-dark transition-colors duration-300">
+    <!-- 顶部导航栏 -->
+    <header class="bg-white shadow-md fixed top-0 left-0 right-0 z-50 transition-all duration-300">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <i class="fa fa-book text-primary text-2xl"></i>
+                <h1 class="text-xl md:text-2xl font-bold text-primary">
+                    单词记忆大师 <span class="text-gray-600 text-sm md:text-base font-normal">| Vocabulary Master</span>
+                </h1>
+            </div>
+            <div class="flex items-center space-x-4">
+                <button id="translation-toggle" class="p-2 rounded-full hover:bg-gray-100 transition-colors text-sm flex items-center">
+                    <i class="fa fa-language mr-1"></i>
+                    <span class="hidden sm:inline">翻译 (Translation): 开启 (On)</span>
+                </button>
+                <button id="theme-toggle" class="p-2 rounded-full hover:bg-gray-100 transition-colors">
+                    <i class="fa fa-moon-o text-gray-600"></i>
+                </button>
+                <button id="help-btn" class="p-2 rounded-full hover:bg-gray-100 transition-colors">
+                    <i class="fa fa-question text-gray-600"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="container mx-auto px-4 pt-24 pb-16">
+        <!-- 初始状态：仅显示词库上传区 -->
+        <div id="initial-state" class="max-w-3xl mx-auto">
+            <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+                <h2 class="text-xl font-bold mb-4 flex items-center">
+                    <i class="fa fa-upload text-primary mr-2"></i>
+                    词库管理 | Vocabulary Library
+                </h2>
+                <hr class="mb-6 border-gray-200">
+                
+                <!-- 上传区域 - 修改提示文字为中英文 -->
+                <div id="upload-area" class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center mb-6 hover:border-primary transition-colors cursor-pointer">
+                    <i class="fa fa-file-text-o text-4xl text-gray-400 mb-3"></i>
+                    <p class="text-gray-600 mb-2">点击或拖放JSON词库文件到此处 | Click or drag JSON vocabulary file here</p>
+                    <p class="text-sm text-gray-500">支持格式: JSON，最大10MB | Supported format: JSON, max 10MB</p>
+                    <input type="file" id="file-upload" accept=".json" class="hidden">
+                </div>
+                
+                <!-- 上传错误提示 - 补充英文翻译 -->
+                <div id="upload-error" class="hidden bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                    <div class="flex items-start">
+                        <i class="fa fa-exclamation-circle text-red-500 mt-0.5 mr-3"></i>
+                        <div>
+                            <h4 class="font-medium text-red-800 mb-1">上传失败 | Upload Failed</h4>
+                            <p id="upload-error-message" class="text-sm text-red-700"></p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 已加载词库信息 -->
+                <div id="vocab-info" class="hidden">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="font-semibold">已加载词库 | Loaded Library</h3>
+                        <span id="word-count" class="bg-primary/10 text-primary text-sm px-2 py-1 rounded-full">0 个单词 | 0 words</span>
+                    </div>
+                    <div id="topics-list" class="bg-gray-50 rounded-lg p-3 max-h-40 overflow-y-auto text-sm">
+                        <!-- 主题列表将在这里动态生成 -->
+                    </div>
+                    <button id="clear-library" class="mt-4 w-full py-2 px-4 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm flex items-center justify-center">
+                        <i class="fa fa-trash-o mr-1"></i> 清除词库 | Clear Library
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 未加载词库时的提示 - 修改为中英文 -->
+            <div class="bg-white rounded-xl shadow-lg p-8 text-center">
+                <i class="fa fa-folder-open-o text-5xl text-gray-300 mb-4"></i>
+                <p class="text-gray-500 mb-2">请先上传词库文件开始学习 | Please upload a vocabulary file to start learning</p>
+                <p class="text-sm text-gray-400">词库格式要求: JSON文件，包含"Word/Phrase"和"Meaning"字段 | Library format requirement: JSON file with "Word/Phrase" and "Meaning" fields</p>
+            </div>
+        </div>
+        
+        <!-- 学习状态：上下布局展示单词学习和互动练习 -->
+        <div id="learning-state" class="hidden">
+            <!-- 顶部：词库信息和进度 -->
+            <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <h2 class="text-xl font-bold mb-4 flex items-center">
+                            <i class="fa fa-database text-primary mr-2"></i>
+                            词库信息 | Library Info
+                        </h2>
+                        <div class="flex justify-between items-center mb-3">
+                            <h3 class="font-semibold">已加载词库 | Loaded Library</h3>
+                            <span id="word-count-learning" class="bg-primary/10 text-primary text-sm px-2 py-1 rounded-full">0 个单词 | 0 words</span>
+                        </div>
+                        <div id="topics-list-learning" class="bg-gray-50 rounded-lg p-3 max-h-24 overflow-y-auto text-sm mb-4">
+                            <!-- 主题列表将在这里动态生成 -->
+                        </div>
+                        <button id="clear-library-learning" class="py-2 px-4 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm flex items-center">
+                            <i class="fa fa-trash-o mr-1"></i> 清除词库 | Clear Library
+                        </button>
+                    </div>
+                    
+                    <div>
+                        <h2 class="text-xl font-bold mb-4 flex items-center">
+                            <i class="fa fa-line-chart text-secondary mr-2"></i>
+                            学习进度 | Learning Progress
+                        </h2>
+                        <div class="w-full bg-gray-200 rounded-full h-2.5 mb-2">
+                            <div id="progress-bar" class="bg-primary h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-4">
+                            <span id="progress-text">0/0 单词已学习</span> | <span id="progress-percent">0%</span>
+                        </p>
+                        
+                        <div class="bg-gray-50 p-3 rounded-lg">
+                            <h3 class="font-semibold text-sm mb-2">当前进度 | Current Progress</h3>
+                            <div class="flex justify-between items-center">
+                                <span id="current-progress-info" class="text-sm text-gray-600">单词: 0/0</span>
+                                <button id="restart-learning" class="text-xs bg-primary/10 text-primary px-2 py-1 rounded hover:bg-primary/20 transition-colors">
+                                    重新开始 | Restart
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 上部分：单词学习区 - 增加了内边距和最小高度 -->
+            <div class="bg-white rounded-xl shadow-lg p-8 md:p-10 mb-8 min-h-[720px]">
+                <h2 class="text-xl font-bold mb-6 flex items-center">
+                    <i class="fa fa-bookmark text-primary mr-2"></i>
+                    单词学习 | Word Learning
+                </h2>
+                <hr class="mb-8 border-gray-200">
+                
+                <!-- 单词展示区域 -->
+                <div id="vocab-display">
+                    <!-- 单词/短语 -->
+                    <div class="mb-8 text-center">
+                        <h3 id="current-word" class="text-4xl font-bold text-primary mb-3"></h3>
+                        <p id="current-topic" class="text-sm text-gray-500 italic hidden"></p>
+                    </div>
+                    
+                    <!-- 详细信息区域 - 增加了间距 -->
+                    <div class="space-y-8 mb-8">
+                        <!-- 词性部分 -->
+                        <div id="part-of-speech" class="hidden p-5 bg-blue-50 rounded-lg border-2 border-blue-100">
+                            <p class="font-semibold text-gray-700 mb-2">词性 | Part of Speech</p>
+                            <p id="pos-content" class="text-gray-800 text-lg"></p>
+                        </div>
+                        
+                        <!-- 含义部分 -->
+                        <div id="meaning" class="hidden p-6 bg-emerald-50 rounded-lg border-2 border-emerald-200 shadow-sm">
+                            <p class="font-bold text-emerald-700 mb-3 text-lg">含义 | Meaning</p>
+                            <p id="meaning-content" class="text-emerald-600 text-xl leading-relaxed"></p>
+                        </div>
+                        
+                        <!-- 例句部分 -->
+                        <div id="example" class="hidden p-6 bg-indigo-50 rounded-lg border-2 border-indigo-200 shadow-sm">
+                            <p class="font-bold text-indigo-700 mb-3 text-lg">例句 | Example</p>
+                            <p id="example-content" class="text-indigo-600 text-lg italic leading-relaxed"></p>
+                            <!-- 翻译结果区域 -->
+                            <div id="translation-container" class="mt-4 pt-4 border-t border-indigo-100">
+                                <p class="font-medium text-indigo-700 text-base mb-2">中文翻译 | Chinese Translation</p>
+                                <p id="example-translation" class="text-gray-700 text-base">
+                                    <span class="loading-shimmer inline-block h-5 w-3/4 rounded"></span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 控制按钮组 - 增加了按钮大小和间距 -->
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-10">
+                        <button id="show-topic" class="btn-hover bg-gray-100 hover:bg-gray-200 py-4 px-3 rounded-lg text-sm flex flex-col items-center">
+                            <i class="fa fa-tag mb-2"></i>
+                            <span>主题<br>Topic</span>
+                        </button>
+                        <button id="show-pos" class="btn-hover bg-blue-100 hover:bg-blue-200 py-4 px-3 rounded-lg text-sm flex flex-col items-center">
+                            <i class="fa fa-font mb-2"></i>
+                            <span>词性<br>POS</span>
+                        </button>
+                        <button id="show-meaning" class="btn-hover bg-emerald-100 hover:bg-emerald-200 py-4 px-3 rounded-lg text-sm flex flex-col items-center text-emerald-700">
+                            <i class="fa fa-sign-language mb-2"></i>
+                            <span>含义<br>Meaning</span>
+                        </button>
+                        <button id="show-example" class="btn-hover bg-indigo-100 hover:bg-indigo-200 py-4 px-3 rounded-lg text-sm flex flex-col items-center text-indigo-700">
+                            <i class="fa fa-comment mb-2"></i>
+                            <span>例句<br>Example</span>
+                        </button>
+                    </div>
+                    
+                    <!-- 发音控制 - 增加了内边距 -->
+                    <div class="bg-gray-50 p-5 rounded-lg mb-10">
+                        <p class="text-center text-sm font-medium text-gray-700 mb-4">发音 | Pronunciation</p>
+                        <div class="grid grid-cols-2 gap-3">
+                            <button id="pronounce-slow" class="btn-hover bg-gray-200 hover:bg-gray-300 py-3 rounded-lg text-sm flex items-center justify-center">
+                                <i class="fa fa-clock-o mr-1"></i> 慢速 (0.3X)
+                            </button>
+                            <button id="pronounce-normal" class="btn-hover bg-gray-200 hover:bg-gray-300 py-3 rounded-lg text-sm flex items-center justify-center">
+                                <i class="fa fa-clock-o mr-1"></i> 正常 (0.7X)
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 导航按钮 - 增加了按钮大小 -->
+                    <div class="flex justify-between items-center">
+                        <button id="prev-word" class="btn-hover bg-gray-100 hover:bg-gray-200 py-4 px-8 rounded-lg flex items-center">
+                            <i class="fa fa-arrow-left mr-2"></i>
+                            <span>上一个 | Previous</span>
+                        </button>
+                        <span id="word-navigation" class="text-gray-500 text-lg">1/0</span>
+                        <button id="next-word" class="btn-hover bg-primary hover:bg-primary/90 text-white py-4 px-8 rounded-lg flex items-center">
+                            <span>下一个 | Next</span>
+                            <i class="fa fa-arrow-right ml-2"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 下部分：互动练习区 - 增加了内边距和最小高度 -->
+            <div class="bg-white rounded-xl shadow-lg p-8 md:p-10 min-h-[720px]">
+                <h2 class="text-xl font-bold mb-6 flex items-center">
+                    <i class="fa fa-puzzle-piece text-secondary mr-2"></i>
+                    互动练习 | Interactive Practice
+                </h2>
+                <hr class="mb-8 border-gray-200">
+                
+                <!-- 练习类型选择 - 增加了按钮大小和间距 -->
+                <div class="grid grid-cols-3 gap-4 mb-8">
+                    <button id="spelling-btn" class="btn-hover py-4 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm flex flex-col items-center">
+                        <i class="fa fa-pencil text-xl mb-2"></i>
+                        <span>拼写练习<br>Spelling</span>
+                    </button>
+                    <button id="matching-btn" class="btn-hover py-4 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm flex flex-col items-center">
+                        <i class="fa fa-exchange text-xl mb-2"></i>
+                        <span>词义匹配<br>Matching</span>
+                    </button>
+                    <button id="flashcard-btn" class="btn-hover py-4 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm flex flex-col items-center">
+                        <i class="fa fa-clone text-xl mb-2"></i>
+                        <span>记忆卡片<br>Flashcard</span>
+                    </button>
+                </div>
+                
+                <!-- 拼写练习 - 增加高度和内边距 -->
+                <div id="spelling-practice" class="hidden h-96 flex flex-col justify-center">
+                    <p class="text-center mb-6 text-lg" id="spelling-prompt">请拼写: <span class="font-semibold" id="spelling-word"></span> | Please spell: <span class="font-semibold" id="spelling-word-eng"></span></p>
+                    <input type="text" id="spelling-input" class="border border-gray-300 rounded-lg px-5 py-3 mb-6 focus:outline-none focus:ring-2 focus:ring-primary/50 text-lg" placeholder="在此输入拼写... | Enter spelling here...">
+                    <button id="check-spelling" class="btn-hover bg-secondary text-white py-3 rounded-lg text-lg">检查 | Check</button>
+                    <p id="spelling-result" class="mt-6 text-center text-lg hidden"></p>
+                </div>
+                
+                <!-- 词义匹配练习 - 增加高度和内边距 -->
+                <div id="matching-practice" class="hidden h-96 overflow-y-auto">
+                    <p class="text-center mb-6 text-lg">将单词与正确的含义匹配 | Match words with their correct meanings</p>
+                    <div class="grid grid-cols-2 gap-4" id="matching-container">
+                        <!-- 匹配项将在这里动态生成 -->
+                    </div>
+                    <button id="check-matching" class="btn-hover bg-secondary text-white py-3 rounded-lg mt-6 text-lg">检查 | Check</button>
+                    <p id="matching-result" class="mt-6 text-center text-lg hidden"></p>
+                </div>
+                
+                <!-- 记忆卡片练习 - 增加卡片高度和内边距 -->
+                <div id="flashcard-practice" class="hidden h-96 flex flex-col items-center justify-center">
+                    <div id="flashcard" class="card-shadow w-full h-72 rounded-xl flip-animation relative">
+                        <div id="flashcard-front" class="flip-front absolute inset-0 flex items-center justify-center p-8">
+                            <div class="text-center">
+                                <p class="text-2xl font-semibold" id="flashcard-word"></p>
+                                <p class="text-sm text-gray-500 mt-3">点击查看含义 | Click to see meaning</p>
+                            </div>
+                        </div>
+                        <div id="flashcard-back" class="flip-back absolute inset-0 flex items-center justify-center p-8">
+                            <div class="text-center">
+                                <p class="text-lg text-emerald-600" id="flashcard-meaning"></p>
+                                <p class="text-sm text-gray-500 mt-3">点击返回 | Click to go back</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex justify-between w-full mt-6">
+                        <button id="flashcard-prev" class="btn-hover bg-gray-100 hover:bg-gray-200 py-3 px-6 rounded-lg text-sm">
+                            <i class="fa fa-arrow-left mr-1"></i> 上一个 | Previous
+                        </button>
+                        <button id="flashcard-next" class="btn-hover bg-secondary text-white py-3 px-6 rounded-lg text-sm">
+                            下一个 | Next <i class="fa fa-arrow-right ml-1"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 练习进度 - 增加了间距 -->
+                <div class="mt-8 pt-6 border-t border-gray-100">
+                    <div class="flex justify-between items-center">
+                        <p class="text-sm text-gray-600">当前练习进度 | Practice Progress</p>
+                        <span id="practice-progress" class="text-sm font-medium text-primary">0/0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 帮助模态框 -->
+    <div id="help-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+            <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+                <h3 class="text-xl font-bold">使用帮助 | Help</h3>
+                <button id="close-help" class="text-gray-500 hover:text-gray-700">
+                    <i class="fa fa-times text-xl"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <h4 class="font-semibold text-lg mb-2">1. 词库上传 | Upload Vocabulary</h4>
+                    <p>点击上传区域，选择JSON格式的词库文件进行上传。系统将自动解析并加载词库内容。| Click the upload area and select a JSON format vocabulary file to upload. The system will automatically parse and load the vocabulary content.</p>
+                    <div class="bg-blue-50 p-3 rounded-lg mt-2 text-sm">
+                        <p class="font-medium mb-1">词库文件格式要求 | Vocabulary file format requirements：</p>
+                        <ul class="list-disc pl-5 space-y-1">
+                            <li>必须为JSON格式，扩展名为.json | Must be JSON format with .json extension</li>
+                            <li>文件大小不超过10MB | File size not exceeding 10MB</li>
+                            <li>必须包含以下字段 | Must contain the following fields：
+                                <ul class="list-circle pl-5 mt-1">
+                                    <li>"Word/Phrase（词汇 / 短语）"</li>
+                                    <li>"Meaning（含义）"</li>
+                                </ul>
+                            </li>
+                            <li>可选字段 | Optional fields："Topic（主题）"、"Part of Speech（词性）"、"Example（例句）"</li>
+                        </ul>
+                    </div>
+                    <div class="bg-gray-100 p-3 rounded-lg mt-2 text-sm font-mono overflow-x-auto">
+                        示例格式 | Example format：<br>
+                        [
+                        <br>&nbsp;&nbsp;{
+                        <br>&nbsp;&nbsp;&nbsp;&nbsp;"Word/Phrase（词汇 / 短语）": "apple",
+                        <br>&nbsp;&nbsp;&nbsp;&nbsp;"Topic（主题）": "水果 | Fruit",
+                        <br>&nbsp;&nbsp;&nbsp;&nbsp;"Part of Speech（词性）": "n.（名词 | Noun）",
+                        <br>&nbsp;&nbsp;&nbsp;&nbsp;"Meaning（含义）": "苹果：一种常见的水果 | Apple: a common fruit",
+                        <br>&nbsp;&nbsp;&nbsp;&nbsp;"Example（例句）": "I like apples."
+                        <br>&nbsp;&nbsp;}
+                        <br>]
+                    </div>
+                </div>
+                <div>
+                    <h4 class="font-semibold text-lg mb-2">2. 单词学习 | Word Learning</h4>
+                    <p>使用主题、词性、含义和例句按钮切换显示相应信息。使用发音按钮听取不同语速的单词发音。| Use the Topic, POS, Meaning, and Example buttons to toggle the display of corresponding information. Use the pronunciation buttons to listen to the word pronounced at different speeds.</p>
+                    <p class="mt-2">例句翻译功能：顶部导航栏的"翻译"按钮可以开启或关闭英文例句的中文翻译。| Example translation function: The "Translation" button in the top navigation bar can turn on or off the Chinese translation of English examples.</p>
+                </div>
+                <div>
+                    <h4 class="font-semibold text-lg mb-2">3. 互动练习 | Interactive Practice</h4>
+                    <ul class="list-disc pl-5 space-y-1">
+                        <li><span class="font-medium">拼写练习 | Spelling Practice：</span>根据提示拼写出正确的单词 | Spell the correct word according to the prompt</li>
+                        <li><span class="font-medium">词义匹配 | Meaning Matching：</span>将单词与正确的含义进行匹配 | Match words with their correct meanings</li>
+                        <li><span class="font-medium">记忆卡片 | Flashcard：</span>通过卡片翻转记忆单词及其含义 | Memorize words and their meanings by flipping cards</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 加载中提示 -->
+    <div id="loading-indicator" class="fixed inset-0 bg-white/80 z-50 hidden flex items-center justify-center">
+        <div class="text-center">
+            <div class="inline-block w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p class="text-gray-700">加载中... | Loading...</p>
+        </div>
+    </div>
+
+    <script>
+        // 模块化组织代码 - 翻译服务
+        const TranslationService = (() => {
+            // 翻译功能开关状态
+            let translationEnabled = true;
+            
+            // 检查是否是英文句子（简单判断）
+            const isEnglishSentence = (text) => {
+                // 如果包含中文字符，认为不是英文句子
+                if (/[\u4e00-\u9fa5]/.test(text)) {
+                    return false;
+                }
+                // 检查是否包含足够的英文单词和标点
+                return /[A-Za-z]{2,}/.test(text) && text.length > 5;
+            };
+            
+            // 翻译英文句子为中文
+            const translateToChinese = async (text) => {
+                // 如果翻译功能关闭，直接返回
+                if (!translationEnabled) return null;
+                
+                // 如果不是英文句子，不需要翻译
+                if (!isEnglishSentence(text)) {
+                    return "无需翻译（非英文句子）| No translation needed (non-English text)";
+                }
+                
+                try {
+                    // 使用Google翻译API进行翻译
+                    const encodedText = encodeURIComponent(text);
+                    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=zh-CN&dt=t&q=${encodedText}`;
+                    
+                    const response = await fetch(url);
+                    
+                    // 处理429 Too Many Requests错误
+                    if (response.status === 429) {
+                        return "翻译请求过于频繁，请稍后再试 | Too many translation requests, please try again later";
+                    }
+                    
+                    if (!response.ok) {
+                        throw new Error(`翻译服务错误: ${response.status} | Translation service error: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    
+                    // 提取翻译结果
+                    if (data && data[0] && data[0][0] && data[0][0][0]) {
+                        return data[0][0][0];
+                    } else {
+                        return "无法获取翻译结果 | Could not get translation result";
+                    }
+                } catch (error) {
+                    console.error("翻译失败:", error);
+                    return "翻译服务暂时不可用 | Translation service unavailable";
+                }
+            };
+            
+            // 切换翻译功能开关状态
+            const toggleTranslation = () => {
+                translationEnabled = !translationEnabled;
+                return translationEnabled;
+            };
+            
+            // 获取当前翻译功能状态
+            const isEnabled = () => translationEnabled;
+            
+            return {
+                translateToChinese,
+                toggleTranslation,
+                isEnabled,
+                isEnglishSentence
+            };
+        })();
+        
+        // 模块化组织代码 - 核心数据管理
+        const VocabularyData = (() => {
+            let vocabularyList = [];
+            let currentIndex = 0;
+            let learnedWords = new Set();
+            const STORAGE_KEY = 'vocabularyMasterData';
+            
+            // 从本地存储加载数据
+            const loadFromStorage = () => {
+                try {
+                    const savedData = localStorage.getItem(STORAGE_KEY);
+                    if (savedData) {
+                        const { list, index, learned } = JSON.parse(savedData);
+                        vocabularyList = list || [];
+                        currentIndex = index || 0;
+                        learnedWords = new Set(learned || []);
+                        return true;
+                    }
+                } catch (error) {
+                    console.error('从本地存储加载数据失败 | Failed to load data from local storage:', error);
+                    localStorage.removeItem(STORAGE_KEY);
+                }
+                return false;
+            };
+            
+            // 保存数据到本地存储
+            const saveToStorage = () => {
+                try {
+                    const data = {
+                        list: vocabularyList,
+                        index: currentIndex,
+                        learned: Array.from(learnedWords)
+                    };
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+                } catch (error) {
+                    console.error('保存数据到本地存储失败 | Failed to save data to local storage:', error);
+                }
+            };
+            
+            return {
+                // 初始化数据
+                init: () => loadFromStorage(),
+                
+                // 获取词库列表
+                getList: () => [...vocabularyList],
+                
+                // 设置新词库
+                setList: (newList) => {
+                    vocabularyList = newList;
+                    currentIndex = 0;
+                    learnedWords.clear();
+                    saveToStorage();
+                },
+                
+                // 清除词库
+                clearList: () => {
+                    vocabularyList = [];
+                    currentIndex = 0;
+                    learnedWords.clear();
+                    localStorage.removeItem(STORAGE_KEY);
+                },
+                
+                // 获取当前单词索引
+                getCurrentIndex: () => currentIndex,
+                
+                // 设置当前单词索引
+                setCurrentIndex: (index) => {
+                    if (index >= 0 && index < vocabularyList.length) {
+                        currentIndex = index;
+                        saveToStorage();
+                        return true;
+                    }
+                    return false;
+                },
+                
+                // 获取当前单词
+                getCurrentWord: () => {
+                    return vocabularyList[currentIndex] || null;
+                },
+                
+                // 移动到上一个单词
+                prevWord: () => {
+                    if (currentIndex > 0) {
+                        currentIndex--;
+                        saveToStorage();
+                        return true;
+                    }
+                    return false;
+                },
+                
+                // 移动到下一个单词
+                nextWord: () => {
+                    if (currentIndex < vocabularyList.length - 1) {
+                        currentIndex++;
+                        saveToStorage();
+                        return true;
+                    }
+                    return false;
+                },
+                
+                // 标记单词为已学习
+                markAsLearned: (index = currentIndex) => {
+                    learnedWords.add(index);
+                    saveToStorage();
+                },
+                
+                // 清除学习记录
+                resetLearning: () => {
+                    currentIndex = 0;
+                    learnedWords.clear();
+                    saveToStorage();
+                },
+                
+                // 获取学习进度
+                getProgress: () => {
+                    return {
+                        learned: learnedWords.size,
+                        total: vocabularyList.length,
+                        percent: vocabularyList.length > 0 
+                            ? Math.round((learnedWords.size / vocabularyList.length) * 100)
+                            : 0
+                    };
+                },
+                
+                // 获取所有主题
+                getTopics: () => {
+                    const topics = new Set();
+                    vocabularyList.forEach(item => {
+                        if (item['Topic（主题）']) topics.add(item['Topic（主题）']);
+                    });
+                    return Array.from(topics);
+                },
+                
+                // 获取随机单词子集（用于匹配练习）
+                getRandomSubset: (count = 4) => {
+                    // 复制数组并打乱顺序
+                    const shuffled = [...vocabularyList].sort(() => 0.5 - Math.random());
+                    // 返回前count个元素
+                    return shuffled.slice(0, Math.min(count, vocabularyList.length));
+                }
+            };
+        })();
+        
+        // 模块化组织代码 - UI控制器
+        const UIController = (() => {
+            // DOM元素缓存
+            const elements = {
+                // 状态容器
+                initialState: document.getElementById('initial-state'),
+                learningState: document.getElementById('learning-state'),
+                
+                // 上传区域
+                uploadArea: document.getElementById('upload-area'),
+                fileUpload: document.getElementById('file-upload'),
+                vocabInfo: document.getElementById('vocab-info'),
+                topicsList: document.getElementById('topics-list'),
+                wordCount: document.getElementById('word-count'),
+                clearLibrary: document.getElementById('clear-library'),
+                uploadError: document.getElementById('upload-error'),
+                uploadErrorMessage: document.getElementById('upload-error-message'),
+                
+                // 翻译开关
+                translationToggle: document.getElementById('translation-toggle'),
+                
+                // 学习状态的词库信息
+                wordCountLearning: document.getElementById('word-count-learning'),
+                topicsListLearning: document.getElementById('topics-list-learning'),
+                clearLibraryLearning: document.getElementById('clear-library-learning'),
+                restartLearning: document.getElementById('restart-learning'),
+                currentProgressInfo: document.getElementById('current-progress-info'),
+                
+                // 单词学习区
+                currentWord: document.getElementById('current-word'),
+                currentTopic: document.getElementById('current-topic'),
+                partOfSpeech: document.getElementById('part-of-speech'),
+                posContent: document.getElementById('pos-content'),
+                meaning: document.getElementById('meaning'),
+                meaningContent: document.getElementById('meaning-content'),
+                example: document.getElementById('example'),
+                exampleContent: document.getElementById('example-content'),
+                exampleTranslation: document.getElementById('example-translation'),
+                translationContainer: document.getElementById('translation-container'),
+                showTopic: document.getElementById('show-topic'),
+                showPos: document.getElementById('show-pos'),
+                showMeaning: document.getElementById('show-meaning'),
+                showExample: document.getElementById('show-example'),
+                pronounceSlow: document.getElementById('pronounce-slow'),
+                pronounceNormal: document.getElementById('pronounce-normal'),
+                prevWord: document.getElementById('prev-word'),
+                nextWord: document.getElementById('next-word'),
+                wordNavigation: document.getElementById('word-navigation'),
+                
+                // 进度条
+                progressBar: document.getElementById('progress-bar'),
+                progressText: document.getElementById('progress-text'),
+                progressPercent: document.getElementById('progress-percent'),
+                
+                // 互动练习区
+                spellingBtn: document.getElementById('spelling-btn'),
+                matchingBtn: document.getElementById('matching-btn'),
+                flashcardBtn: document.getElementById('flashcard-btn'),
+                spellingPractice: document.getElementById('spelling-practice'),
+                matchingPractice: document.getElementById('matching-practice'),
+                flashcardPractice: document.getElementById('flashcard-practice'),
+                
+                // 拼写练习
+                spellingPrompt: document.getElementById('spelling-prompt'),
+                spellingWord: document.getElementById('spelling-word'),
+                spellingWordEng: document.getElementById('spelling-word-eng'), // 新增英文单词显示元素
+                spellingInput: document.getElementById('spelling-input'),
+                checkSpelling: document.getElementById('check-spelling'),
+                spellingResult: document.getElementById('spelling-result'),
+                
+                // 匹配练习
+                matchingContainer: document.getElementById('matching-container'),
+                checkMatching: document.getElementById('check-matching'),
+                matchingResult: document.getElementById('matching-result'),
+                
+                // 记忆卡片
+                flashcard: document.getElementById('flashcard'),
+                flashcardFront: document.getElementById('flashcard-front'),
+                flashcardBack: document.getElementById('flashcard-back'),
+                flashcardWord: document.getElementById('flashcard-word'),
+                flashcardMeaning: document.getElementById('flashcard-meaning'),
+                flashcardPrev: document.getElementById('flashcard-prev'),
+                flashcardNext: document.getElementById('flashcard-next'),
+                
+                // 练习进度
+                practiceProgress: document.getElementById('practice-progress'),
+                
+                // 帮助模态框
+                helpBtn: document.getElementById('help-btn'),
+                helpModal: document.getElementById('help-modal'),
+                closeHelp: document.getElementById('close-help'),
+                
+                // 主题切换
+                themeToggle: document.getElementById('theme-toggle'),
+                
+                // 加载指示器
+                loadingIndicator: document.getElementById('loading-indicator')
+            };
+            
+            // 当前练习类型
+            let practiceType = '';
+            // 记忆卡片状态
+            let flashcardFlipped = false;
+            
+            // 显示加载指示器
+            const showLoading = () => {
+                elements.loadingIndicator.classList.remove('hidden');
+            };
+            
+            // 隐藏加载指示器
+            const hideLoading = () => {
+                elements.loadingIndicator.classList.add('hidden');
+            };
+            
+            // 显示上传错误
+            const showUploadError = (message) => {
+                // 确保错误信息也是中英文对照
+                let errorMsg = message;
+                // 常见错误信息补充英文翻译
+                if (message.includes('请上传JSON格式')) {
+                    errorMsg = '请上传JSON格式的词库文件 (.json) | Please upload a JSON file (.json)';
+                } else if (message.includes('文件过大')) {
+                    errorMsg = '文件过大，请上传小于10MB的文件 | File too large, please upload files smaller than 10MB';
+                } else if (message.includes('JSON格式错误')) {
+                    errorMsg = message + ' | Invalid JSON format, please check your file';
+                } else if (message.includes('词库必须是数组格式')) {
+                    errorMsg = message + ' | Vocabulary must be in array format';
+                } else if (message.includes('词库不能为空')) {
+                    errorMsg = message + ' | Vocabulary cannot be empty';
+                } else if (message.includes('缺少必要字段')) {
+                    errorMsg = message + ' | Required fields are missing, please check your entries';
+                } else if (message.includes('文件读取失败')) {
+                    errorMsg = message + ' | Failed to read file, please try another file';
+                }
+                
+                elements.uploadErrorMessage.textContent = errorMsg;
+                elements.uploadError.classList.remove('hidden');
+                elements.uploadArea.classList.add('upload-error');
+                
+                // 3秒后自动清除错误状态（用户可以立即尝试重新上传）
+                setTimeout(() => {
+                    elements.uploadArea.classList.remove('upload-error');
+                }, 3000);
+            };
+            
+            // 隐藏上传错误
+            const hideUploadError = () => {
+                elements.uploadError.classList.add('hidden');
+                elements.uploadArea.classList.remove('upload-error');
+            };
+            
+            // 更新例句翻译
+            const updateExampleTranslation = async () => {
+                const wordData = VocabularyData.getCurrentWord();
+                if (!wordData || !wordData['Example（例句）']) {
+                    elements.exampleTranslation.textContent = "无例句 | No example sentence";
+                    return;
+                }
+                
+                const exampleText = wordData['Example（例句）'];
+                
+                // 如果翻译功能关闭
+                if (!TranslationService.isEnabled()) {
+                    elements.exampleTranslation.textContent = "翻译已关闭 | Translation disabled";
+                    return;
+                }
+                
+                // 显示加载状态
+                elements.exampleTranslation.innerHTML = '<span class="loading-shimmer inline-block h-5 w-3/4 rounded"></span>';
+                
+                // 获取翻译结果
+                const translation = await TranslationService.translateToChinese(exampleText);
+                elements.exampleTranslation.textContent = translation;
+            };
+            
+            // 更新单词显示
+            const updateVocabularyDisplay = () => {
+                const wordData = VocabularyData.getCurrentWord();
+                if (!wordData) return;
+                
+                // 提取基础信息
+                const word = wordData['Word/Phrase（词汇 / 短语）'].split(' ')[0];
+                const topic = wordData['Topic（主题）'] || '无 | None';
+                const pos = wordData['Part of Speech（词性）'] || '未提供 | Not provided';
+                const meaning = wordData['Meaning（含义）'];
+                const example = wordData['Example（例句）'] || '未提供 | Not provided';
+                
+                // 更新DOM
+                elements.currentWord.textContent = word;
+                elements.currentTopic.textContent = `主题：${topic} | Topic: ${topic}`;
+                elements.posContent.textContent = pos;
+                elements.meaningContent.textContent = meaning;
+                elements.exampleContent.textContent = example;
+                
+                // 更新导航信息
+                const currentIndex = VocabularyData.getCurrentIndex();
+                const totalWords = VocabularyData.getList().length;
+                elements.wordNavigation.textContent = `${currentIndex + 1}/${totalWords}`;
+                
+                // 触发例句翻译更新
+                updateExampleTranslation();
+                
+                // 标记为已学习
+                VocabularyData.markAsLearned();
+                // 更新进度
+                updateProgress();
+            };
+            
+            // 更新词库信息显示
+            const updateVocabularyInfo = () => {
+                const totalWords = VocabularyData.getList().length;
+                const topics = VocabularyData.getTopics();
+                
+                // 更新单词计数
+                const wordCountText = `${totalWords} 个单词 | ${totalWords} words`;
+                elements.wordCount.textContent = wordCountText;
+                elements.wordCountLearning.textContent = wordCountText;
+                
+                // 更新两个位置的主题列表
+                [elements.topicsList, elements.topicsListLearning].forEach(element => {
+                    element.innerHTML = '';
+                    
+                    if (topics.length === 0) {
+                        const noTopicElement = document.createElement('div');
+                        noTopicElement.className = 'bg-white p-2 rounded mb-1 shadow-sm';
+                        noTopicElement.textContent = '无主题 | No topics';
+                        element.appendChild(noTopicElement);
+                    } else {
+                        topics.forEach(topic => {
+                            const topicElement = document.createElement('div');
+                            topicElement.className = 'bg-white p-2 rounded mb-1 shadow-sm';
+                            topicElement.textContent = topic;
+                            element.appendChild(topicElement);
+                        });
+                    }
+                });
+                
+                elements.vocabInfo.classList.remove('hidden');
+            };
+            
+            // 更新学习进度显示
+            const updateProgress = () => {
+                const { learned, total, percent } = VocabularyData.getProgress();
+                elements.progressBar.style.width = `${percent}%`;
+                elements.progressText.textContent = `${learned}/${total} 单词已学习 | ${learned}/${total} words learned`;
+                elements.progressPercent.textContent = `${percent}%`;
+                updateCurrentProgressInfo();
+            };
+            
+            // 更新当前进度信息
+            const updateCurrentProgressInfo = () => {
+                const currentIndex = VocabularyData.getCurrentIndex();
+                const totalWords = VocabularyData.getList().length;
+                elements.currentProgressInfo.textContent = `单词: ${currentIndex + 1}/${totalWords} | Word: ${currentIndex + 1}/${totalWords}`;
+                elements.practiceProgress.textContent = `${currentIndex + 1}/${totalWords}`;
+            };
+            
+            // 切换练习类型
+            const switchPractice = (type) => {
+                const totalWords = VocabularyData.getList().length;
+                if (totalWords === 0) return;
+                
+                practiceType = type;
+                
+                // 隐藏所有练习
+                elements.spellingPractice.classList.add('hidden');
+                elements.matchingPractice.classList.add('hidden');
+                elements.flashcardPractice.classList.add('hidden');
+                
+                // 重置按钮样式
+                elements.spellingBtn.classList.remove('bg-secondary/20', 'text-secondary');
+                elements.matchingBtn.classList.remove('bg-secondary/20', 'text-secondary');
+                elements.flashcardBtn.classList.remove('bg-secondary/20', 'text-secondary');
+                
+                // 显示选中的练习并高亮按钮
+                if (type === 'spelling') {
+                    elements.spellingPractice.classList.remove('hidden');
+                    elements.spellingBtn.classList.add('bg-secondary/20', 'text-secondary');
+                    initSpellingPractice();
+                } else if (type === 'matching') {
+                    elements.matchingPractice.classList.remove('hidden');
+                    elements.matchingBtn.classList.add('bg-secondary/20', 'text-secondary');
+                    initMatchingPractice();
+                } else if (type === 'flashcard') {
+                    elements.flashcardPractice.classList.remove('hidden');
+                    elements.flashcardBtn.classList.add('bg-secondary/20', 'text-secondary');
+                    updateFlashcard();
+                }
+                
+                // 更新练习进度
+                updateCurrentProgressInfo();
+            };
+            
+            // 初始化拼写练习 - 补充英文单词显示
+            const initSpellingPractice = () => {
+                const wordData = VocabularyData.getCurrentWord();
+                if (!wordData) return;
+                
+                const word = wordData['Word/Phrase（词汇 / 短语）'].split(' ')[0];
+                // 生成中文提示用的下划线（每个字母一个下划线）
+                const chineseUnderline = word.replace(/[a-zA-Z]/g, '_');
+                // 生成英文提示用的下划线
+                const englishUnderline = word.replace(/[a-zA-Z]/g, '_');
+                
+                elements.spellingWord.textContent = chineseUnderline;
+                elements.spellingWordEng.textContent = englishUnderline;
+                elements.spellingInput.value = '';
+                elements.spellingResult.classList.add('hidden');
+                elements.spellingInput.focus();
+            };
+            
+            // 检查拼写 - 确保结果提示是中英文
+            const checkSpelling = () => {
+                const wordData = VocabularyData.getCurrentWord();
+                if (!wordData) return;
+                
+                const correctWord = wordData['Word/Phrase（词汇 / 短语）'].split(' ')[0].toLowerCase();
+                const userInput = elements.spellingInput.value.trim().toLowerCase();
+                
+                if (userInput === correctWord) {
+                    elements.spellingResult.textContent = '正确！太棒了！| Correct! Well done!';
+                    elements.spellingResult.className = 'mt-6 text-center text-green-600 text-lg';
+                    elements.spellingResult.classList.remove('hidden');
+                    
+                    // 2秒后自动进入下一个单词
+                    setTimeout(() => {
+                        if (VocabularyData.nextWord()) {
+                            initSpellingPractice();
+                            updateVocabularyDisplay();
+                            updateCurrentProgressInfo();
+                        }
+                    }, 2000);
+                } else {
+                    elements.spellingResult.textContent = `错误，正确答案是: ${correctWord} | Wrong, correct answer: ${correctWord}`;
+                    elements.spellingResult.className = 'mt-6 text-center text-red-600 text-lg';
+                    elements.spellingResult.classList.remove('hidden');
+                }
+            };
+            
+            // 初始化匹配练习
+            const initMatchingPractice = () => {
+                elements.matchingContainer.innerHTML = '';
+                elements.matchingResult.classList.add('hidden');
+                
+                // 清除之前的匹配数据
+                window.matchingPairs = null;
+                
+                // 获取随机单词子集
+                const subset = VocabularyData.getRandomSubset(4);
+                const words = subset.map(item => item['Word/Phrase（词汇 / 短语）'].split(' ')[0]);
+                const meanings = [...subset].map(item => item['Meaning（含义）'].split('：')[0])
+                    .sort(() => 0.5 - Math.random());
+                
+                // 创建单词列表
+                words.forEach((word, index) => {
+                    const wordElement = document.createElement('div');
+                    wordElement.className = 'bg-blue-50 p-4 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors';
+                    wordElement.textContent = word;
+                    wordElement.dataset.type = 'word';
+                    wordElement.dataset.index = index;
+                    wordElement.addEventListener('click', selectMatchingItem);
+                    elements.matchingContainer.appendChild(wordElement);
+                });
+                
+                // 创建含义列表
+                meanings.forEach((meaning, index) => {
+                    const meaningElement = document.createElement('div');
+                    meaningElement.className = 'bg-emerald-50 p-4 rounded-lg cursor-pointer hover:bg-emerald-100 transition-colors';
+                    meaningElement.textContent = meaning;
+                    meaningElement.dataset.type = 'meaning';
+                    meaningElement.dataset.index = index;
+                    meaningElement.addEventListener('click', selectMatchingItem);
+                    elements.matchingContainer.appendChild(meaningElement);
+                });
+            };
+            
+            // 选择匹配项
+            const selectMatchingItem = (e) => {
+                const selected = document.querySelector('.matching-selected');
+                const current = e.target;
+                
+                // 如果已经选中了一个不同类型的项目，则进行匹配
+                if (selected && selected.dataset.type !== current.dataset.type) {
+                    selected.classList.remove('matching-selected', 'ring-2', 'ring-primary');
+                    current.classList.add('matching-selected', 'ring-2', 'ring-primary');
+                    
+                    // 记录匹配关系
+                    if (!window.matchingPairs) window.matchingPairs = [];
+                    window.matchingPairs.push({
+                        wordIndex: parseInt(selected.dataset.index),
+                        meaningIndex: parseInt(current.dataset.index)
+                    });
+                    
+                    // 禁用已匹配的项目
+                    selected.removeEventListener('click', selectMatchingItem);
+                    current.removeEventListener('click', selectMatchingItem);
+                    selected.classList.add('opacity-70', 'cursor-not-allowed');
+                    current.classList.add('opacity-70', 'cursor-not-allowed');
+                } 
+                // 如果点击的是同一项目，则取消选择
+                else if (selected === current) {
+                    selected.classList.remove('matching-selected', 'ring-2', 'ring-primary');
+                } 
+                // 否则选中当前项目
+                else {
+                    if (selected) {
+                        selected.classList.remove('matching-selected', 'ring-2', 'ring-primary');
+                    }
+                    current.classList.add('matching-selected', 'ring-2', 'ring-primary');
+                }
+            };
+            
+            // 检查匹配结果 - 确保提示是中英文
+            const checkMatching = () => {
+                if (!window.matchingPairs || window.matchingPairs.length < 4) {
+                    elements.matchingResult.textContent = '请完成所有匹配 | Please complete all matches';
+                    elements.matchingResult.className = 'mt-6 text-center text-orange-600 text-lg';
+                    elements.matchingResult.classList.remove('hidden');
+                    return;
+                }
+                
+                // 检查每对匹配是否正确
+                let correct = 0;
+                window.matchingPairs.forEach(pair => {
+                    if (pair.wordIndex === pair.meaningIndex) correct++;
+                });
+                
+                if (correct === 4) {
+                    elements.matchingResult.textContent = '全部正确！| All correct!';
+                    elements.matchingResult.className = 'mt-6 text-center text-green-600 text-lg';
+                    setTimeout(initMatchingPractice, 2000);
+                } else {
+                    elements.matchingResult.textContent = `正确 ${correct}/4 | Correct ${correct}/4`;
+                    elements.matchingResult.className = 'mt-6 text-center text-red-600 text-lg';
+                }
+                
+                elements.matchingResult.classList.remove('hidden');
+                window.matchingPairs = null;
+            };
+            
+            // 更新记忆卡片
+            const updateFlashcard = () => {
+                const wordData = VocabularyData.getCurrentWord();
+                if (!wordData) return;
+                
+                elements.flashcardWord.textContent = wordData['Word/Phrase（词汇 / 短语）'].split(' ')[0];
+                elements.flashcardMeaning.textContent = wordData['Meaning（含义）'];
+                
+                // 确保卡片是正面朝上
+                if (flashcardFlipped) flipFlashcard();
+            };
+            
+            // 翻转记忆卡片
+            const flipFlashcard = () => {
+                flashcardFlipped = !flashcardFlipped;
+                elements.flashcard.classList.toggle('flipped');
+            };
+            
+            // 切换翻译功能状态
+            const toggleTranslation = () => {
+                const newState = TranslationService.toggleTranslation();
+                elements.translationToggle.innerHTML = newState 
+                    ? '<i class="fa fa-language mr-1"></i><span class="hidden sm:inline">翻译 (Translation): 开启 (On)</span>'
+                    : '<i class="fa fa-language mr-1 text-gray-500"></i><span class="hidden sm:inline text-gray-500">翻译 (Translation): 关闭 (Off)</span>';
+                
+                // 如果例句区域可见，立即更新翻译状态
+                if (!elements.example.classList.contains('hidden')) {
+                    updateExampleTranslation();
+                }
+            };
+            
+            // 切换深色/浅色主题
+            const toggleTheme = () => {
+                const body = document.body;
+                body.classList.toggle('bg-gray-900');
+                body.classList.toggle('bg-gray-50');
+                body.classList.toggle('text-white');
+                body.classList.toggle('text-dark');
+                
+                const header = document.querySelector('header');
+                header.classList.toggle('bg-gray-800');
+                header.classList.toggle('bg-white');
+                
+                const icon = elements.themeToggle.querySelector('i');
+                if (icon.classList.contains('fa-moon-o')) {
+                    icon.classList.remove('fa-moon-o');
+                    icon.classList.add('fa-sun-o');
+                } else {
+                    icon.classList.remove('fa-sun-o');
+                    icon.classList.add('fa-moon-o');
+                }
+            };
+            
+            // 初始化事件监听
+            const initEventListeners = () => {
+                // 翻译开关事件
+                elements.translationToggle.addEventListener('click', toggleTranslation);
+                
+                // 上传区域事件
+                elements.uploadArea.addEventListener('click', () => {
+                    hideUploadError();
+                    elements.fileUpload.click();
+                });
+                
+                elements.fileUpload.addEventListener('change', (e) => {
+                    hideUploadError();
+                    handleFileUpload(e);
+                });
+                
+                elements.uploadArea.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    elements.uploadArea.classList.add('border-primary');
+                    hideUploadError();
+                });
+                
+                elements.uploadArea.addEventListener('dragleave', () => {
+                    elements.uploadArea.classList.remove('border-primary');
+                });
+                
+                elements.uploadArea.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    elements.uploadArea.classList.remove('border-primary');
+                    hideUploadError();
+                    if (e.dataTransfer.files.length) {
+                        elements.fileUpload.files = e.dataTransfer.files;
+                        handleFileUpload(e);
+                    }
+                });
+                
+                // 清除词库按钮
+                elements.clearLibrary.addEventListener('click', clearVocabulary);
+                elements.clearLibraryLearning.addEventListener('click', clearVocabulary);
+                
+                // 重新开始学习
+                elements.restartLearning.addEventListener('click', () => {
+                    if (VocabularyData.getList().length > 0) {
+                        VocabularyData.resetLearning();
+                        updateVocabularyDisplay();
+                        updateProgress();
+                        switchPractice(practiceType || 'spelling');
+                    }
+                });
+                
+                // 显示控制按钮
+                elements.showTopic.addEventListener('click', () => elements.currentTopic.classList.toggle('hidden'));
+                elements.showPos.addEventListener('click', () => elements.partOfSpeech.classList.toggle('hidden'));
+                elements.showMeaning.addEventListener('click', () => elements.meaning.classList.toggle('hidden'));
+                elements.showExample.addEventListener('click', () => {
+                    elements.example.classList.toggle('hidden');
+                    // 如果显示例句，触发翻译
+                    if (!elements.example.classList.contains('hidden')) {
+                        updateExampleTranslation();
+                    }
+                });
+                
+                // 发音按钮
+                elements.pronounceSlow.addEventListener('click', () => SpeechController.pronounceWord(0.3));
+                elements.pronounceNormal.addEventListener('click', () => SpeechController.pronounceWord(0.7));
+                
+                // 导航按钮
+                elements.prevWord.addEventListener('click', goToPreviousWord);
+                elements.nextWord.addEventListener('click', goToNextWord);
+                
+                // 练习类型切换
+                elements.spellingBtn.addEventListener('click', () => switchPractice('spelling'));
+                elements.matchingBtn.addEventListener('click', () => switchPractice('matching'));
+                elements.flashcardBtn.addEventListener('click', () => switchPractice('flashcard'));
+                
+                // 拼写练习
+                elements.checkSpelling.addEventListener('click', checkSpelling);
+                elements.spellingInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') checkSpelling();
+                });
+                
+                // 匹配练习
+                elements.checkMatching.addEventListener('click', checkMatching);
+                
+                // 记忆卡片
+                elements.flashcard.addEventListener('click', flipFlashcard);
+                elements.flashcardPrev.addEventListener('click', () => {
+                    if (VocabularyData.prevWord()) {
+                        updateFlashcard();
+                        updateCurrentProgressInfo();
+                    }
+                });
+                elements.flashcardNext.addEventListener('click', () => {
+                    if (VocabularyData.nextWord()) {
+                        updateFlashcard();
+                        updateCurrentProgressInfo();
+                    }
+                });
+                
+                // 帮助模态框
+                elements.helpBtn.addEventListener('click', () => elements.helpModal.classList.remove('hidden'));
+                elements.closeHelp.addEventListener('click', () => elements.helpModal.classList.add('hidden'));
+                elements.helpModal.addEventListener('click', (e) => {
+                    if (e.target === elements.helpModal) elements.helpModal.classList.add('hidden');
+                });
+                
+                // 主题切换
+                elements.themeToggle.addEventListener('click', toggleTheme);
+            };
+            
+            // 处理文件上传
+            const handleFileUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                // 隐藏之前的错误信息
+                hideUploadError();
+                
+                // 检查文件类型
+                if (file.type !== 'application/json' && !file.name.endsWith('.json')) {
+                    showUploadError('请上传JSON格式的词库文件 (.json)');
+                    return;
+                }
+                
+                // 检查文件大小（限制10MB）
+                const maxSize = 10 * 1024 * 1024; // 10MB
+                if (file.size > maxSize) {
+                    showUploadError('文件过大，请上传小于10MB的文件');
+                    return;
+                }
+                
+                showLoading();
+                
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        // 尝试解析JSON
+                        let jsonData;
+                        try {
+                            jsonData = JSON.parse(event.target.result);
+                        } catch (parseError) {
+                            throw new Error(`JSON格式错误: ${parseError.message}`);
+                        }
+                        
+                        // 验证是否为数组
+                        if (!Array.isArray(jsonData)) {
+                            throw new Error('词库必须是数组格式');
+                        }
+                        
+                        // 验证数组不为空
+                        if (jsonData.length === 0) {
+                            throw new Error('词库不能为空');
+                        }
+                        
+                        // 验证每个单词对象的必要字段
+                        const requiredFields = ['Word/Phrase（词汇 / 短语）', 'Meaning（含义）'];
+                        const invalidIndices = [];
+                        
+                        jsonData.forEach((item, index) => {
+                            // 检查是否为对象
+                            if (typeof item !== 'object' || item === null) {
+                                invalidIndices.push(index + 1); // 转换为1-based索引
+                                return;
+                            }
+                            
+                            // 检查必要字段
+                            requiredFields.forEach(field => {
+                                if (!item.hasOwnProperty(field) || !item[field]) {
+                                    invalidIndices.push(index + 1); // 转换为1-based索引
+                                }
+                            });
+                        });
+                        
+                        // 如果有无效项，提示错误
+                        if (invalidIndices.length > 0) {
+                            throw new Error(`以下单词缺少必要字段: ${invalidIndices.join(', ')}`);
+                        }
+                        
+                        // 所有验证通过，加载词库
+                        VocabularyData.setList(jsonData);
+                        
+                        // 更新显示
+                        updateVocabularyDisplay();
+                        updateVocabularyInfo();
+                        updateProgress();
+                        switchPractice('spelling'); // 默认显示拼写练习
+                        
+                        // 切换到学习状态布局
+                        elements.initialState.classList.add('hidden');
+                        elements.learningState.classList.remove('hidden');
+                        
+                        // 重置文件输入，允许重复上传同一文件
+                        elements.fileUpload.value = '';
+                        
+                        alert(`成功加载 ${jsonData.length} 个单词 | Successfully loaded ${jsonData.length} words`);
+                    } catch (error) {
+                        console.error('解析词库失败 | Vocabulary parsing failed:', error);
+                        showUploadError(error.message);
+                    } finally {
+                        hideLoading();
+                    }
+                };
+                
+                reader.onerror = () => {
+                    hideLoading();
+                    showUploadError('文件读取失败，请尝试其他文件');
+                };
+                
+                reader.readAsText(file);
+            };
+            
+            // 清除词库 - 确认提示改为中英文
+            const clearVocabulary = () => {
+                if (confirm('确定要清除当前词库吗？ | Are you sure you want to clear the current vocabulary?')) {
+                    VocabularyData.clearList();
+                    
+                    // 切换回初始状态
+                    elements.learningState.classList.add('hidden');
+                    elements.initialState.classList.remove('hidden');
+                    elements.vocabInfo.classList.add('hidden');
+                    
+                    elements.fileUpload.value = '';
+                }
+            };
+            
+            // 上一个单词 - 提示改为中英文
+            const goToPreviousWord = () => {
+                if (VocabularyData.prevWord()) {
+                    updateVocabularyDisplay();
+                    // 如果当前有活跃的练习，同步更新
+                    if (practiceType === 'flashcard') {
+                        updateFlashcard();
+                    }
+                } else {
+                    alert('已经是第一个单词了 | This is the first word');
+                }
+            };
+            
+            // 下一个单词 - 提示改为中英文
+            const goToNextWord = () => {
+                if (VocabularyData.nextWord()) {
+                    updateVocabularyDisplay();
+                    // 如果当前有活跃的练习，同步更新
+                    if (practiceType === 'flashcard') {
+                        updateFlashcard();
+                    }
+                } else {
+                    alert('已经是最后一个单词了 | This is the last word');
+                }
+            };
+            
+            // 初始化UI
+            const init = () => {
+                // 尝试从本地存储加载数据
+                const hasData = VocabularyData.init();
+                if (hasData && VocabularyData.getList().length > 0) {
+                    // 有保存的数据，直接进入学习状态
+                    updateVocabularyDisplay();
+                    updateVocabularyInfo();
+                    updateProgress();
+                    switchPractice('spelling');
+                    elements.initialState.classList.add('hidden');
+                    elements.learningState.classList.remove('hidden');
+                }
+                
+                // 初始化事件监听
+                initEventListeners();
+            };
+            
+            return {
+                init,
+                showLoading,
+                hideLoading
+            };
+        })();
+        
+        // 模块化组织代码 - 语音合成控制器
+        const SpeechController = (() => {
+            // 检查浏览器是否支持语音合成
+            const isSupported = 'speechSynthesis' in window;
+            
+            // 初始化语音合成
+            const init = () => {
+                if (!isSupported) {
+                    console.warn('当前浏览器不支持语音合成 | Speech synthesis is not supported in this browser');
+                    return;
+                }
+                
+                // 提前触发语音加载
+                window.speechSynthesis.getVoices();
+            };
+            
+            // 发音功能 - 仅保留语速控制
+            const pronounceWord = (speed = 1) => {
+                if (!isSupported) {
+                    alert('当前浏览器不支持语音合成 | Speech synthesis is not supported in this browser');
+                    return;
+                }
+                
+                const wordData = VocabularyData.getCurrentWord();
+                if (!wordData) return;
+                
+                const word = wordData['Word/Phrase（词汇 / 短语）'].split(' ')[0];
+                const utterance = new SpeechSynthesisUtterance(word);
+                utterance.rate = speed;
+                utterance.lang = 'en-US';
+                
+                window.speechSynthesis.speak(utterance);
+            };
+            
+            return {
+                init,
+                pronounceWord,
+                isSupported
+            };
+        })();
+        
+        // 应用初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            // 初始化各模块
+            SpeechController.init();
+            UIController.init();
+        });
+    </script>
+</body>
+</html>
